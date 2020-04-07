@@ -16,20 +16,22 @@
 ('http://tile.stamen.com/watercolor/16/10507/25322.jpg',)
 """
 
+import random
+
 from math import pi
 
-from Core import Coordinate
-from Geo import MercatorProjection, deriveTransformation
-from Providers import IMapProvider
+from .Core import Coordinate
+from .Geo import MercatorProjection, deriveTransformation
+from .Providers import IMapProvider
+from . import Tiles
 
-import random, Tiles
 
 class BaseProvider(IMapProvider):
     def __init__(self, style, tile_format='png'):
         # the spherical mercator world tile covers (-π, -π) to (π, π)
         t = deriveTransformation(-pi, pi, 0, 0, pi, pi, 1, 0, -pi, -pi, 0, 1)
         self.projection = MercatorProjection(0, t)
-        
+
         self.style = style
         self.tile_format = tile_format
 

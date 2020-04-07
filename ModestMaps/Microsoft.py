@@ -18,13 +18,15 @@
 ('http://h....ortho.tiles.virtualearth.net/tiles/h0230102033330212.jpeg?g=90',)
 """
 
+import random
+
 from math import pi
 
-from Core import Coordinate
-from Geo import MercatorProjection, deriveTransformation
-from Providers import IMapProvider
+from .Core import Coordinate
+from .Geo import MercatorProjection, deriveTransformation
+from .Providers import IMapProvider
+from . import Tiles
 
-import random, Tiles
 
 class AbstractProvider(IMapProvider):
     def __init__(self):

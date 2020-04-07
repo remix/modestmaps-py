@@ -67,12 +67,12 @@ import os.path
 __version__ = open(os.path.join(os.path.dirname(__file__), 'VERSION')).read().strip()
 
 import sys
-import urllib
-import httplib
-import urlparse
-import StringIO
+import urllib.request, urllib.parse, urllib.error
+import http.client
+import urllib.parse
+import io
 import math
-import thread
+import _thread
 import time
 
 try:
@@ -85,11 +85,11 @@ except ImportError:
         # maybe that's not what you're using MMaps for?
         Image = None
 
-import Tiles
-import Providers
-import Core
-import Geo
-import Yahoo, Microsoft, BlueMarble, OpenStreetMap, CloudMade, MapQuest, Stamen
+from . import Tiles
+from . import Providers
+from . import Core
+from . import Geo
+from . import Yahoo, Microsoft, BlueMarble, OpenStreetMap, CloudMade, MapQuest, Stamen
 import time
 
 # a handy list of possible providers, which isn't
@@ -174,7 +174,7 @@ def calculateMapExtent(provider, width, height, *args):
         returns the coordinate of an initial tile and its point placement,
         relative to the map center.
     """
-    coordinates = map(provider.locationCoordinate, args)
+    coordinates = list(map(provider.locationCoordinate, args))
     
     TL = Core.Coordinate(min([c.row for c in coordinates]),
                          min([c.column for c in coordinates]),
@@ -221,7 +221,7 @@ def printlocked(lock, *stuff):
     """
     """
     if lock.acquire():
-        print >> sys.stderr, ' '.join([str(thing) for thing in stuff])
+        print(' '.join([str(thing) for thing in stuff]), file=sys.stderr)
         lock.release()
 
 class TileRequest:
@@ -249,20 +249,20 @@ class TileRequest:
         urls = self.provider.getTileUrls(self.coord)
         
         if verbose:
-            printlocked(lock, 'Requesting', urls, '- attempt no.', attempt, 'in thread', hex(thread.get_ident()))
+            printlocked(lock, 'Requesting', urls, '- attempt no.', attempt, 'in thread', hex(_thread.get_ident()))
 
         # this is the time-consuming part
         try:
             imgs = []
         
-            for (scheme, netloc, path, params, query, fragment) in map(urlparse.urlparse, urls):
+            for (scheme, netloc, path, params, query, fragment) in map(urllib.parse.urlparse, urls):
                 if (netloc, path, query) in cache:
                     if lock.acquire():
                         img = cache[(netloc, path, query)].copy()
                         lock.release()
 
                     if verbose:
-                        printlocked(lock, 'Found', urlparse.urlunparse(('http', netloc, path, '', query, '')), 'in cache')
+                        printlocked(lock, 'Found', urllib.parse.urlunparse(('http', netloc, path, '', query, '')), 'in cache')
             
                 elif scheme in ('file', ''):
                     img = Image.open(path).convert('RGBA')
@@ -273,13 +273,13 @@ class TileRequest:
                         lock.release()
                 
                 elif scheme in ('http', 'https'):
-                    conn = httplib.HTTPConnection(netloc)
+                    conn = http.client.HTTPConnection(netloc)
                     conn.request('GET', path + ('?' + query).rstrip('?'), headers={'User-Agent': 'Modest Maps python branch (http://modestmaps.com)'})
                     response = conn.getresponse()
                     status = str(response.status)
                     
                     if status.startswith('2'):
-                        img = Image.open(StringIO.StringIO(response.read())).convert('RGBA')
+                        img = Image.open(io.StringIO(response.read())).convert('RGBA')
                         imgs.append(img)
     
                         if lock.acquire():
@@ -314,7 +314,7 @@ class TileRequest:
                 
         except:
             if verbose:
-                printlocked(lock, 'Failed', urls, '- attempt no.', attempt, 'in thread', hex(thread.get_ident()))
+                printlocked(lock, 'Failed', urls, '- attempt no.', attempt, 'in thread', hex(_thread.get_ident()))
 
             if attempt < TileRequest.MAX_ATTEMPTS:
                 time.sleep(1 * attempt)
@@ -324,7 +324,7 @@ class TileRequest:
 
         else:
             if verbose:
-                printlocked(lock, 'Received', urls, '- attempt no.', attempt, 'in thread', hex(thread.get_ident()))
+                printlocked(lock, 'Received', urls, '- attempt no.', attempt, 'in thread', hex(_thread.get_ident()))
 
         if lock.acquire():
             self.imgs = imgs
@@ -524,7 +524,7 @@ class Map:
     
     def render_tiles(self, tiles, img_width, img_height, verbose=False, fatbits_ok=False):
         
-        lock = thread.allocate_lock()
+        lock = _thread.allocate_lock()
         threads = 32
         cache = {}
         
@@ -533,7 +533,7 @@ class Map:
             
             for tile in pool:
                 # request all needed images
-                thread.start_new_thread(tile.load, (lock, verbose, cache, fatbits_ok))
+                _thread.start_new_thread(tile.load, (lock, verbose, cache, fatbits_ok))
                 
             # if it takes any longer than 20 sec overhead + 10 sec per tile, give up
             due = time.time() + 20 + len(pool) * 10
